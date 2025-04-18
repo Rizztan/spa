@@ -1,0 +1,277 @@
+<div class="ui raised segment" style="background-color: #f8f9fa; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" x-data="paymentComponent">
+    <div class="ui message" x-show="message" :class="messageType" style="border-radius: 8px; margin-bottom: 20px;">
+        <p x-text="message"></p>
+    </div>
+    <h2 class="ui header" style="color: #2c3e50; margin-bottom: 25px;">
+        <i class="credit card icon" style="color: #3498db;"></i>
+        <div class="content">
+            Payment
+            <div class="sub header" style="color: #7f8c8d; margin-top: 5px;">Enter your payment details</div>
+        </div>
+    </h2>
+
+    <!-- Order Summary Section -->
+    <div class="order-summary" style="background-color: #ffffff; border-radius: 20px; padding: 20px; margin-bottom: 30px; box-shadow: 0 2px 6px rgba(0,0,0,0.1);">
+        <h3 class="ui header" style="color: #2c3e50; margin-bottom: 20px;">
+            <i class="shopping basket icon" style="color: #3498db;"></i>
+            <div class="content">
+                Order Summary
+                <div class="sub header" style="color: #7f8c8d;">Review your selected items</div>
+            </div>
+        </h3>
+        <div x-show="cartItems.length === 0" style="color: #666; text-align: center;">
+            No items in your cart.
+        </div>
+        <div class="ui divided list" x-show="cartItems.length > 0">
+            <template x-for="(item, index) in cartItems" :key="index">
+                <div class="item" style="padding: 10px 0;">
+                    <div class="content">
+                        <div class="header" x-text="item.name || 'Unknown'" style="color: #34495e;"></div>
+                        <div class="description" style="color: #7f8c8d;">
+                            Quantity: <span x-text="item.quantity || '0'"></span> | 
+                            Price: <span x-text="\`₱\${(item.price || 0).toFixed(2)}\`"></span> | 
+                            Total: <span x-text="\`₱\${((item.quantity || 0) * (item.price || 0)).toFixed(2)}\`"></span>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+        <div class="ui divider" x-show="cartItems.length > 0"></div>
+        <div style="text-align: right; font-weight: bold; color: #2c3e50; margin-top: 10px;" x-show="cartItems.length > 0">
+            Total Amount: <span x-text="\`₱\${totalAmount}\`"></span>
+        </div>
+    </div>
+
+    <!-- Payment Form -->
+    <form class="ui form">
+        <div class="field">
+            <label style="color: #34495e; font-weight: 600; margin-bottom: 8px;">Name</label>
+            <div class="ui left icon input" style="margin-bottom: 15px;">
+                <input type="text" x-model="paymentData.name" required placeholder="Enter your name" style="border-radius: 8px; border: 1px solid #e0e0e0; padding: 12px 15px 12px 40px;">
+                <i class="user icon" style="color: #3498db; opacity: 0.8;"></i>
+            </div>
+        </div>
+        <div class="field">
+            <label style="color: #34495e; font-weight: 600; margin-bottom: 8px;">Email</label>
+            <div class="ui left icon input" style="margin-bottom: 15px;">
+                <input type="email" x-model="paymentData.email" required placeholder="Enter your email" style="border-radius: 8px; border: 1px solid #e0e0e0; padding: 12px 15px 12px 40px;">
+                <i class="envelope icon" style="color: #3498db; opacity: 0.8;"></i>
+            </div>
+        </div>
+        <div class="field">
+            <label style="color: #34495e; font-weight: 600; margin-bottom: 8px;">Address</label>
+            <textarea x-model="paymentData.address" required placeholder="Enter your address..." rows="4" style="border-radius: 8px; border: 1px solid #e0e0e0; resize: vertical; padding: 12px 15px; margin-bottom: 20px;"></textarea>
+        </div>
+        <div class="field">
+            <label style="color: #34495e; font-weight: 600; margin-bottom: 8px;">Payment Method</label>
+            <select x-model="paymentData.payment_method" required style="border-radius: 8px; border: 1px solid #e0e0e0; padding: 12px 15px; margin-bottom: 20px;">
+                <option value="">Select Payment Method</option>
+                <option value="gcash">Gcash</option>
+                <option value="maya">Maya</option>
+                <option value="paypal">PayPal</option>
+            </select>
+        </div>
+        <div class="field">
+            <label style="color: #34495e; font-weight: 600; margin-bottom: 8px;">Upload Receipt Image (Optional)</label>
+            <div class="ui left icon input" style="margin-bottom: 15px;">
+                <input type="file" accept="image/jpeg,image/png" @change="paymentData.receipt_image = $event.target.files[0]" style="border-radius: 8px; border: 1px solid #e0e0e0; padding: 12px 15px;">
+                <i class="image icon" style="color: #3498db; opacity: 0.8;"></i>
+            </div>
+        </div>
+        <button class="ui primary button" @click.prevent="submitPayment" style="background-color: #3498db; color: white; border-radius: 8px; padding: 12px 20px; font-weight: 600; letter-spacing: 0.5px; transition: all 0.3s ease;">
+            <i class="check icon"></i> Submit Payment
+        </button>
+    </form>
+</div>
+
+<script>
+    if (!Alpine.store('api')) {
+        Alpine.store('api', {
+            fetch(url, options) {
+                return fetch(url, options);
+            }
+        });
+    }
+
+    Alpine.data("paymentComponent", () => ({
+        paymentData: Alpine.reactive({
+            name: '',
+            email: '',
+            address: '',
+            payment_method: '',
+            receipt_image: null
+        }),
+        cartItems: Alpine.reactive(JSON.parse(localStorage.getItem('checkoutItems')) || []),
+        message: '',
+        messageType: '',
+
+        get totalAmount() {
+            return this.cartItems.reduce((total, item) => total + ((item.quantity || 0) * (item.price || 0)), 0).toFixed(2);
+        },
+
+        init() {
+            console.log("Initializing paymentComponent");
+            const navigationEntries = performance.getEntriesByType('navigation');
+            if (navigationEntries.length > 0 && navigationEntries[0].type === 'back_forward') {
+                this.resetCart();
+                this.message = "Checkout items have been reset due to navigation.";
+                this.messageType = "yellow";
+                setTimeout(() => { this.message = ""; }, 3000);
+            }
+
+            window.addEventListener('popstate', () => {
+                this.resetCart();
+                this.message = "Checkout items have been reset due to navigation.";
+                this.messageType = "yellow";
+                setTimeout(() => { this.message = ""; }, 3000);
+            });
+        },
+
+        resetCart() {
+            console.log("Resetting checkout items");
+            this.cartItems = [];
+            localStorage.removeItem('checkoutItems');
+        },
+
+        async submitPayment() {
+            console.log("Submitting payment with data:", this.paymentData, "and items:", this.cartItems);
+
+            // Enhanced form validation
+            const isFormValid = ['name', 'email', 'address', 'payment_method'].every(
+                key => this.paymentData[key].toString().trim() !== ""
+            );
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!isFormValid || !emailRegex.test(this.paymentData.email)) {
+                this.message = "Please fill in all required fields with valid data (e.g., valid email).";
+                this.messageType = "red";
+                setTimeout(() => { this.message = ""; }, 3000);
+                return;
+            }
+
+            if (this.cartItems.length === 0) {
+                this.message = "Your checkout is empty!";
+                this.messageType = "red";
+                setTimeout(() => { this.message = ""; }, 3000);
+                return;
+            }
+
+            const isCartValid = this.cartItems.every(item => {
+                return item.id && item.name && 
+                       Number.isFinite(Number(item.quantity)) && 
+                       Number.isFinite(Number(item.price));
+            });
+            if (!isCartValid) {
+                this.message = "Invalid checkout items. Please check your selection.";
+                this.messageType = "red";
+                setTimeout(() => { this.message = ""; }, 3000);
+                return;
+            }
+
+            // Validate receipt_image (if provided)
+            if (this.paymentData.receipt_image) {
+                const validImageTypes = ['image/jpeg', 'image/png'];
+                if (!(this.paymentData.receipt_image instanceof File) || 
+                    !validImageTypes.includes(this.paymentData.receipt_image.type)) {
+                    this.message = "Please upload a valid image (JPEG or PNG).";
+                    this.messageType = "red";
+                    setTimeout(() => { this.message = ""; }, 3000);
+                    return;
+                }
+                // Check file size (max 5MB)
+                if (this.paymentData.receipt_image.size > 5 * 1024 * 1024) {
+                    this.message = "Image file is too large (max 5MB).";
+                    this.messageType = "red";
+                    setTimeout(() => { this.message = ""; }, 3000);
+                    return;
+                }
+            }
+
+            this.message = "Processing payment...";
+            this.messageType = "yellow";
+
+            const totalAmount = parseFloat(this.totalAmount);
+            if (isNaN(totalAmount) || totalAmount <= 0) {
+                this.message = "Invalid total amount.";
+                this.messageType = "red";
+                setTimeout(() => { this.message = ""; }, 3000);
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('name', this.paymentData.name);
+            formData.append('email', this.paymentData.email);
+            formData.append('address', this.paymentData.address);
+            formData.append('payment_method', this.paymentData.payment_method);
+            formData.append('total_amount', totalAmount.toString()); // Send as string to match curl
+            formData.append('products', JSON.stringify(this.cartItems.map(item => ({
+                id: Number(item.id),
+                name: item.name,
+                quantity: Number(item.quantity),
+                price: Number(item.price)
+            }))));
+
+            // Append receipt_image if a valid file is selected
+            if (this.paymentData.receipt_image instanceof File) {
+                formData.append('receipt_image', this.paymentData.receipt_image);
+                console.log("Appending receipt_image:", {
+                    name: this.paymentData.receipt_image.name,
+                    type: this.paymentData.receipt_image.type,
+                    size: this.paymentData.receipt_image.size
+                });
+            } else {
+                console.log("No receipt_image provided, sending without image.");
+            }
+
+            // Log FormData contents for debugging
+            for (let pair of formData.entries()) {
+                console.log(`${pair[0]}: ${pair[1] instanceof File ? `[File: ${pair[1].name}, ${pair[1].type}, ${pair[1].size} bytes]` : pair[1]}`);
+            }
+
+            try {
+                const response = await Alpine.store('api').fetch('http://localhost:8001/api/payments/', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || `HTTP error! Status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log("Payment successful, response data:", data);
+
+                this.message = "Payment successful! Updating cart...";
+                this.messageType = "green";
+
+                // Update the cart in localStorage to remove only checked-out items
+                const currentCart = JSON.parse(localStorage.getItem('cart')) || [];
+                const checkoutItemIds = this.cartItems.map(item => item.id);
+                const updatedCart = currentCart.filter(cartItem => !checkoutItemIds.includes(cartItem.id));
+                localStorage.setItem('cart', JSON.stringify(updatedCart));
+
+                // Clear checkoutItems
+                this.resetCart();
+
+                // Dispatch payment-submitted event
+                const paymentSubmittedEvent = new CustomEvent('payment-submitted', {
+                    detail: { paymentData: data },
+                    bubbles: true
+                });
+                console.log("Dispatching payment-submitted event with data:", data);
+                window.dispatchEvent(paymentSubmittedEvent);
+
+                setTimeout(() => {
+                    this.message = "";
+                    console.log("Navigating to order list");
+                    navigateTo('products/order_list');
+                }, 2000);
+            } catch (error) {
+                console.error("Error processing payment:", error);
+                this.message = `Error processing payment: ${error.message}`;
+                this.messageType = "red";
+                setTimeout(() => { this.message = ""; }, 5000);
+            }
+        }
+    }));
+</script>
